@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NetProbe — Network Analysis Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* ── Reset ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Design tokens ──────────────────────────────────────────────────────────── */
+:root {
+  --bg:        #0e1117;
+  --surface:   #161b22;
+  --surface-2: #1c2230;
+  --border:    #2d333b;
+  --border-2:  #373e47;
+
+  --text:      #cdd9e5;
+  --text-2:    #768390;
+  --text-3:    #4d5566;
+
+  --blue:      #4393f5;
+  --blue-dim:  rgba(67,147,245,.12);
+  --green:     #3fb950;
+  --green-dim: rgba(63,185,80,.12);
+  --red:       #e5534b;
+  --red-dim:   rgba(229,83,75,.12);
+  --amber:     #d29922;
+  --amber-dim: rgba(210,153,34,.12);
+  --purple:    #8957e5;
+  --teal:      #2ea8a0;
+
+  --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --radius: 6px;
+  --radius-lg: 8px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── App shell ───────────────────────────────────────────────────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  grid-template-rows: 52px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.2px;
+  color: var(--text);
+}
+.logo-icon {
+  width: 26px; height: 26px;
+  background: var(--blue);
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: #fff;
+}
+.header-sep { width: 1px; height: 20px; background: var(--border); }
+.header-tag {
+  font-size: 11px;
+  color: var(--text-2);
+  font-weight: 400;
+  letter-spacing: .1px;
+}
+.spacer { flex: 1; }
+.status-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 11px; color: var(--text-2);
+  cursor: pointer; transition: border-color .15s;
+}
+.status-chip:hover { border-color: var(--border-2); }
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--text-3);
+  transition: background .3s;
+}
+.status-chip.online .status-dot { background: var(--green); }
+.status-chip.online { border-color: rgba(63,185,80,.3); color: var(--text); }
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────────── */
+sidebar {
+  grid-row: 2;
+  overflow-y: auto;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 16px 14px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+sidebar::-webkit-scrollbar { width: 3px; }
+sidebar::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+
+/* ── Main ────────────────────────────────────────────────────────────────────── */
+main {
+  grid-row: 2;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--bg);
+}
+main::-webkit-scrollbar { width: 4px; }
+main::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+
+/* ── Section label ───────────────────────────────────────────────────────────── */
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+
+/* ── Card ────────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.card-body { padding: 12px 14px; }
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.card-title {
+  font-size: 12px; font-weight: 600; color: var(--text);
+}
+
+/* ── Form controls ───────────────────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-label { font-size: 11px; color: var(--text-2); font-weight: 500; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+input[type=text], input[type=number], select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 9px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color .15s;
+}
+input:focus, select:focus { border-color: var(--blue); }
+input[type=range] {
+  padding: 2px 0; cursor: pointer; accent-color: var(--blue);
+}
+input[type=file] {
+  padding: 4px 8px; font-size: 11px; color: var(--text-2);
+  cursor: pointer;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 12px; font-weight: 500; font-family: var(--font);
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.btn:active { opacity: .85; transform: scale(.98); }
+.btn:disabled { opacity: .4; cursor: default; pointer-events: none; }
+
+.btn-primary { background: var(--blue); color: #fff; border-color: transparent; }
+.btn-primary:hover { background: #3a84e0; }
+.btn-success { background: rgba(63,185,80,.15); color: var(--green); border-color: rgba(63,185,80,.3); }
+.btn-success:hover { background: rgba(63,185,80,.22); }
+.btn-danger  { background: rgba(229,83,75,.12); color: var(--red); border-color: rgba(229,83,75,.3); }
+.btn-danger:hover  { background: rgba(229,83,75,.2); }
+.btn-ghost   { background: transparent; color: var(--text-2); border-color: var(--border); }
+.btn-ghost:hover   { border-color: var(--border-2); color: var(--text); }
+.btn-block   { width: 100%; }
+.btn-sm      { padding: 4px 10px; font-size: 11px; }
+
+.btn-group { display: flex; gap: 6px; }
+
+/* ── Stat cards ──────────────────────────────────────────────────────────────── */
+.metrics-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+}
+.metric-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--text-3); margin-bottom: 4px; }
+.metric-value { font-size: 22px; font-weight: 700; line-height: 1; letter-spacing: -.5px; }
+.metric-unit  { font-size: 10px; color: var(--text-2); margin-top: 2px; }
+.mv-blue   { color: var(--blue); }
+.mv-green  { color: var(--green); }
+.mv-amber  { color: var(--amber); }
+.mv-red    { color: var(--red); }
+.mv-purple { color: var(--purple); }
+.mv-teal   { color: var(--teal); }
+
+/* ── Progress ────────────────────────────────────────────────────────────────── */
+.progress-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+}
+.progress-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.progress-title { font-size: 13px; font-weight: 500; }
+.progress-pct   { font-size: 18px; font-weight: 700; color: var(--blue); letter-spacing: -.5px; }
+.progress-track { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.progress-fill  { height: 100%; width: 0%; background: var(--blue); border-radius: 2px; transition: width .25s ease; }
+.progress-meta  { display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+.pm-item        { font-size: 11px; color: var(--text-2); }
+.pm-item b      { color: var(--text); font-weight: 600; }
+
+/* ── Tabs ────────────────────────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 0 4px;
+}
+.tab {
+  padding: 10px 14px;
+  font-size: 12px; font-weight: 500; color: var(--text-2);
+  cursor: pointer; border: none; background: transparent;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+  font-family: var(--font);
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tab-panels { background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.tab-content { display: none; padding: 0; }
+.tab-content.active { display: block; }
+
+/* ── Charts ──────────────────────────────────────────────────────────────────── */
+.charts-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chart-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+}
+.chart-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .8px; color: var(--text-3); margin-bottom: 10px;
+}
+.chart-panel canvas { max-height: 160px; }
+
+/* ── Event log ───────────────────────────────────────────────────────────────── */
+.log-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.log-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.log-title { font-size: 12px; font-weight: 600; }
+.log-body {
+  height: 200px; overflow-y: auto;
+  font-family: var(--mono); font-size: 11.5px;
+}
+.log-body::-webkit-scrollbar { width: 3px; }
+.log-body::-webkit-scrollbar-thumb { background: var(--border-2); }
+
+.log-row {
+  display: grid;
+  grid-template-columns: 92px 160px 48px 1fr;
+  gap: 8px;
+  padding: 3px 14px;
+  border-bottom: 1px solid rgba(45,51,59,.5);
+  align-items: center;
+}
+.log-row:hover { background: rgba(255,255,255,.02); }
+.log-ts { color: var(--text-3); font-size: 11px; }
+.log-seq { color: var(--text-3); font-size: 11px; }
+.log-det { color: var(--text-3); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.ev-PACKET_SENT       { color: var(--blue); }
+.ev-ACK_RECEIVED      { color: var(--green); }
+.ev-TIMEOUT           { color: var(--red); }
+.ev-RETRANSMIT        { color: var(--amber); }
+.ev-PACKET_DROPPED_SIM{ color: var(--amber); }
+.ev-TRANSFER_COMPLETE { color: var(--purple); font-weight: 600; }
+.ev-TRANSFER_START    { color: var(--teal); }
+.ev-PACKET_FAILED     { color: var(--red); font-weight: 600; }
+.ev-DUPLICATE         { color: var(--amber); }
+.ev-default           { color: var(--text-2); }
+
+/* ── Gallery ─────────────────────────────────────────────────────────────────── */
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+.gallery-item {
+  border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;
+  background: var(--surface-2);
+}
+.gallery-item img { width: 100%; display: block; cursor: pointer; transition: opacity .15s; }
+.gallery-item img:hover { opacity: .9; }
+.gallery-caption { padding: 7px 10px; font-size: 11px; color: var(--text-2); }
+
+/* ── Console ─────────────────────────────────────────────────────────────────── */
+.console {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  height: 280px; overflow-y: auto;
+  padding: 10px 12px;
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.6;
+}
+.console::-webkit-scrollbar { width: 3px; }
+.console::-webkit-scrollbar-thumb { background: var(--border-2); }
+.con-line { white-space: pre-wrap; word-break: break-all; color: var(--text-2); }
+.con-line.sep { color: var(--blue); }
+.con-line.ok  { color: var(--green); }
+.con-line.err { color: var(--red); }
+
+/* ── Compare results ─────────────────────────────────────────────────────────── */
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cmp-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  text-align: center;
+}
+.cmp-proto { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--text-2); margin-bottom: 12px; }
+.cmp-num   { font-size: 28px; font-weight: 700; letter-spacing: -.5px; }
+.cmp-sub   { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+.cmp-dur   { font-size: 18px; font-weight: 600; margin-top: 12px; }
+
+/* ── Info note ───────────────────────────────────────────────────────────────── */
+.info-note {
+  background: rgba(67,147,245,.07);
+  border: 1px solid rgba(67,147,245,.2);
+  border-radius: var(--radius);
+  padding: 10px 13px;
+  font-size: 12px; color: var(--text-2); line-height: 1.6;
+}
+.info-note b { color: var(--text); font-weight: 600; }
+
+/* ── Modal ───────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.7);
+  display: none; align-items: center; justify-content: center;
+  z-index: 999; backdrop-filter: blur(2px);
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  max-width: 680px; width: 92%;
+  padding: 16px; position: relative;
+}
+.modal-box img { width: 100%; border-radius: var(--radius); display: block; }
+.modal-caption { padding-top: 8px; font-size: 11px; color: var(--text-2); }
+.modal-close {
+  position: absolute; top: 10px; right: 10px;
+  width: 26px; height: 26px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: var(--text-2);
+}
+.modal-close:hover { color: var(--text); }
+
+/* ── Helpers ─────────────────────────────────────────────────────────────────── */
+.hstack { display: flex; align-items: center; gap: 8px; }
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px; border-radius: 3px;
+  font-size: 10px; font-weight: 600; letter-spacing: .3px;
+}
+.badge-blue   { background: var(--blue-dim);  color: var(--blue); }
+.badge-green  { background: var(--green-dim); color: var(--green); }
+.badge-amber  { background: var(--amber-dim); color: var(--amber); }
+.badge-red    { background: var(--red-dim);   color: var(--red); }
+.divider { height: 1px; background: var(--border); }
+.muted   { color: var(--text-2); }
+.text-sm { font-size: 11px; }
+
+/* ── Scenario cards ──────────────────────────────────────────────────────────── */
+.scenario-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; margin-bottom: 12px; }
+.scenario-card {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 8px 10px;
+}
+.sc-id    { font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: .5px; }
+.sc-title { font-size: 11px; color: var(--text); margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+<!-- HEADER ─────────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">N</div>
+    NetProbe
+  </div>
+  <div class="header-sep"></div>
+  <div class="header-tag">UDP Reliable File Transfer &nbsp;·&nbsp; BTU Computer Networks</div>
+  <div class="spacer"></div>
+  <div class="status-chip" id="srvBadge" onclick="startServer()">
+    <span class="status-dot"></span>
+    <span id="srvBadgeTxt">Server offline</span>
+  </div>
+</header>
+
+<!-- SIDEBAR ─────────────────────────────────────────────────────────────────── -->
+<sidebar>
+
+  <!-- Server -->
+  <div>
+    <div class="section-label">Server</div>
+    <div class="card">
+      <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+        <div class="field">
+          <div class="field-label">Listen Port</div>
+          <input type="number" id="srvPort" value="9999" min="1024" max="65535">
+        </div>
+        <div class="field">
+          <div class="field-label">Simulated Packet Loss &nbsp;
+            <span class="badge badge-blue" id="srvLossVal">0%</span>
+          </div>
+          <input type="range" id="srvLoss" min="0" max="0.5" step="0.01" value="0"
+                 oninput="document.getElementById('srvLossVal').textContent=(+this.value*100).toFixed(0)+'%'">
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-success btn-block" onclick="startServer()">Start</button>
+          <button class="btn btn-danger  btn-block" onclick="stopServer()">Stop</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Transfer -->
+  <div>
+    <div class="section-label">Transfer</div>
+    <div class="card">
+      <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+        <div class="field">
+          <div class="field-label">File</div>
+          <select id="fileSelect"><option value="">Loading…</option></select>
+        </div>
+        <div class="field">
+          <div class="field-label">Upload File</div>
+          <input type="file" id="fileUpload" onchange="uploadFile(this)">
+        </div>
+        <div class="divider"></div>
+        <div class="field">
+          <div class="field-label">Host</div>
+          <input type="text" id="txHost" value="127.0.0.1">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Port</div>
+            <input type="number" id="txPort" value="9999">
+          </div>
+          <div class="field">
+            <div class="field-label">Chunk (B)</div>
+            <input type="number" id="txChunk" value="1024" min="64" max="8192">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Timeout (s)</div>
+            <input type="number" id="txTimeout" value="1.0" min="0.05" step="0.1">
+          </div>
+          <div class="field">
+            <div class="field-label">Window &nbsp;
+              <span class="badge badge-blue" id="winLabel">1</span>
+            </div>
+            <input type="range" id="txWindow" min="1" max="32" value="1"
+                   oninput="updateWinLabel(+this.value)">
+          </div>
+        </div>
+        <div class="field">
+          <div class="field-label">Client Loss &nbsp;
+            <span class="badge badge-amber" id="txLossVal">0%</span>
+          </div>
+          <input type="range" id="txLoss" min="0" max="0.4" step="0.01" value="0"
+                 oninput="document.getElementById('txLossVal').textContent=(+this.value*100).toFixed(0)+'%'">
+        </div>
+        <div class="divider"></div>
+        <div class="field">
+          <div class="field-label">Mode</div>
+          <select id="txMode">
+            <option value="none">None</option>
+            <option value="compress">Compress (zlib)</option>
+            <option value="encrypt">Encrypt (XOR)</option>
+            <option value="compress+encrypt">Compress + Encrypt</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="field-label">Passphrase</div>
+          <input type="text" id="txKey" placeholder="optional">
+        </div>
+        <button class="btn btn-primary btn-block" onclick="startTransfer()" style="margin-top:2px">
+          Send File
+        </button>
+      </div>
+    </div>
+  </div>
+
+</sidebar>
+
+<!-- MAIN ─────────────────────────────────────────────────────────────────────── -->
+<main>
+
+  <!-- Tab bar -->
+  <div>
+    <div class="tab-bar">
+      <button class="tab active" onclick="switchTab('live',this)">Live Transfer</button>
+      <button class="tab"        onclick="switchTab('results',this)">Results &amp; Graphs</button>
+      <button class="tab"        onclick="switchTab('experiments',this)">Experiments</button>
+      <button class="tab"        onclick="switchTab('compare',this)">TCP vs UDP</button>
+    </div>
+    <div class="tab-panels">
+
+      <!-- ── TAB: LIVE ──────────────────────────────────────────────────────── -->
+      <div class="tab-content active" id="tab-live" style="padding:14px;display:flex;flex-direction:column;gap:12px">
+
+        <!-- Metrics -->
+        <div class="metrics-row">
+          <div class="metric-card">
+            <div class="metric-label">Goodput</div>
+            <div class="metric-value mv-blue" id="stGoodput">—</div>
+            <div class="metric-unit">KB/s</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Avg RTT</div>
+            <div class="metric-value mv-teal" id="stRtt">—</div>
+            <div class="metric-unit">ms</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Retransmissions</div>
+            <div class="metric-value mv-amber" id="stRetrans">0</div>
+            <div class="metric-unit">packets</div>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-section">
+          <div class="progress-header">
+            <span class="progress-title" id="progTitle">Ready</span>
+            <span class="progress-pct" id="progPct">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progBar"></div>
+          </div>
+          <div class="progress-meta">
+            <div class="pm-item">Sent <b id="metaSent">0</b></div>
+            <div class="pm-item">ACKed <b id="metaAcked">0</b></div>
+            <div class="pm-item">Failed <b id="metaFailed">0</b></div>
+            <div class="pm-item">Duration <b id="metaDur">—</b></div>
+            <div class="pm-item">Integrity <b id="metaOk">—</b></div>
+          </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-2col">
+          <div class="chart-panel">
+            <div class="chart-label">RTT per Packet (ms)</div>
+            <canvas id="chartRtt"></canvas>
+          </div>
+          <div class="chart-panel">
+            <div class="chart-label">Cumulative Goodput (KB)</div>
+            <canvas id="chartGoodput"></canvas>
+          </div>
+          <div class="chart-panel">
+            <div class="chart-label">Packets Sent vs ACKed</div>
+            <canvas id="chartPkts"></canvas>
+          </div>
+          <div class="chart-panel">
+            <div class="chart-label">Retransmissions Timeline</div>
+            <canvas id="chartRetrans"></canvas>
+          </div>
+        </div>
+
+        <!-- Event log -->
+        <div class="log-wrap">
+          <div class="log-toolbar">
+            <span class="log-title">Event Log &nbsp;
+              <span class="badge badge-blue" id="logCount">0 events</span>
+            </span>
+            <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+          </div>
+          <div class="log-body" id="logBody">
+            <div class="log-row" style="opacity:.4">
+              <span class="log-ts">Timestamp</span>
+              <span style="color:var(--text-3);font-size:11px">Event</span>
+              <span class="log-seq">Seq</span>
+              <span class="log-det">Details</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /tab-live -->
+
+      <!-- ── TAB: RESULTS ───────────────────────────────────────────────────── -->
+      <div class="tab-content" id="tab-results">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border)">
+          <span class="section-label" style="margin:0">Experiment Result Images</span>
+          <button class="btn btn-ghost btn-sm" onclick="loadImages()">Refresh</button>
+        </div>
+        <div class="gallery" id="gallery">
+          <div class="muted text-sm" style="padding:20px">No result images yet. Run experiments first.</div>
+        </div>
+      </div>
+
+      <!-- ── TAB: EXPERIMENTS ───────────────────────────────────────────────── -->
+      <div class="tab-content" id="tab-experiments" style="padding:14px;display:flex;flex-direction:column;gap:12px">
+
+        <div class="scenario-grid">
+          <div class="scenario-card"><div class="sc-id">S1</div><div class="sc-title">Packet size effect</div></div>
+          <div class="scenario-card"><div class="sc-id">S2</div><div class="sc-title">Timeout value effect</div></div>
+          <div class="scenario-card"><div class="sc-id">S3</div><div class="sc-title">Loss rate effect</div></div>
+          <div class="scenario-card"><div class="sc-id">S4</div><div class="sc-title">File size effect</div></div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-weight:600;font-size:13px">Automated Experiment Suite</div>
+            <div class="text-sm muted" style="margin-top:3px">Runs all 4 required + 4 bonus scenarios, generates graphs and summary CSV.</div>
+          </div>
+          <button class="btn btn-primary" id="runExpBtn" onclick="runExperiments()" style="min-width:100px">Run All</button>
+        </div>
+
+        <div class="console" id="expConsole">
+          <span class="con-line muted">Console output will appear here…</span>
+        </div>
+      </div>
+
+      <!-- ── TAB: TCP vs UDP ────────────────────────────────────────────────── -->
+      <div class="tab-content" id="tab-compare" style="padding:14px;display:flex;flex-direction:column;gap:12px">
+
+        <div style="display:flex;align-items:center;gap:10px">
+          <select id="cmpFile" style="flex:1;max-width:280px">
+            <option value="test_data/file_128k.bin">128 KB test file</option>
+            <option value="test_data/file_256k.bin">256 KB test file</option>
+            <option value="test_data/file_512k.bin">512 KB test file</option>
+          </select>
+          <button class="btn btn-primary" id="cmpBtn" onclick="runCompare()" style="min-width:140px">Run Comparison</button>
+        </div>
+
+        <div class="compare-grid" id="compareBars" style="display:none">
+          <div class="cmp-card">
+            <div class="cmp-proto">TCP (OS-managed)</div>
+            <div class="cmp-num mv-blue" id="tcpGoodput">—</div>
+            <div class="cmp-sub">Goodput KB/s</div>
+            <div class="cmp-dur mv-blue" id="tcpDur">—</div>
+            <div class="cmp-sub">Duration (s)</div>
+          </div>
+          <div class="cmp-card">
+            <div class="cmp-proto">NetProbe UDP</div>
+            <div class="cmp-num mv-green" id="udpGoodput">—</div>
+            <div class="cmp-sub">Goodput KB/s</div>
+            <div class="cmp-dur mv-green" id="udpDur">—</div>
+            <div class="cmp-sub">Duration (s)</div>
+          </div>
+        </div>
+
+        <div class="console" id="cmpConsole">
+          <span class="con-line muted">Run comparison to see output…</span>
+        </div>
+
+        <div class="info-note">
+          <b>Why is UDP Stop-and-Wait slower than TCP?</b><br>
+          TCP pipelines data continuously — the OS manages flow control internally.
+          Our UDP protocol with <b>Stop-and-Wait</b> sends one packet, waits for an ACK, then sends the next.
+          On loopback, RTT ≈ 0.1 ms but we still pay a full round-trip per packet.
+          Enable <b>Sliding Window (window ≥ 8)</b> in the sidebar to see throughput approach TCP levels.
+        </div>
+      </div>
+
+    </div><!-- /tab-panels -->
+  </div>
+
+</main>
+</div>
+
+<!-- Image modal -->
+<div class="modal-overlay" id="imgModal" onclick="this.classList.remove('open')">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="document.getElementById('imgModal').classList.remove('open')">✕</button>
+    <img id="modalImg" src="" alt="">
+    <div class="modal-caption" id="modalCaption"></div>
+  </div>
+</div>
+
+<script>
+// ── Chart defaults ────────────────────────────────────────────────────────────
+Chart.defaults.color          = '#4d5566';
+Chart.defaults.borderColor    = '#2d333b';
+Chart.defaults.font.family    = 'Inter, Segoe UI, system-ui, sans-serif';
+Chart.defaults.font.size      = 10;
+
+const lineOpts = (label, color) => ({
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label, data: [],
+      borderColor: color,
+      backgroundColor: color + '18',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0.35,
+      fill: true
+    }]
+  },
+  options: {
+    animation: false, responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 6 }, grid: { color: '#2d333b88' } },
+      y: { beginAtZero: true, ticks: { maxTicksLimit: 5 }, grid: { color: '#2d333b88' } }
+    }
+  }
+});
+
+const rttChart     = new Chart(document.getElementById('chartRtt'),     lineOpts('RTT ms', '#4393f5'));
+const goodputChart = new Chart(document.getElementById('chartGoodput'), lineOpts('KB', '#3fb950'));
+const pktsChart    = new Chart(document.getElementById('chartPkts'), {
+  type: 'bar',
+  data: {
+    labels: [],
+    datasets: [
+      { label: 'Sent',  data: [], backgroundColor: 'rgba(67,147,245,.5)',  borderColor: '#4393f5', borderWidth: 1 },
+      { label: 'ACKed', data: [], backgroundColor: 'rgba(63,185,80,.45)', borderColor: '#3fb950', borderWidth: 1 },
+    ]
+  },
+  options: {
+    animation: false, responsive: true,
+    plugins: { legend: { labels: { boxWidth: 10, padding: 10 } } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 6 }, grid: { color: '#2d333b88' } },
+      y: { beginAtZero: true, grid: { color: '#2d333b88' } }
+    }
+  }
+});
+const retransChart = new Chart(document.getElementById('chartRetrans'), lineOpts('Retrans', '#d29922'));
+
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let st = { sent:0, acked:0, retrans:0, timeouts:0, failed:0,
+           cumBytes:0, rttSum:0, rttCount:0, totalPkts:0, startTs:null };
+let logCount = 0;
+
+function resetState() {
+  Object.assign(st, { sent:0, acked:0, retrans:0, timeouts:0, failed:0,
+                      cumBytes:0, rttSum:0, rttCount:0, totalPkts:0, startTs:null });
+  logCount = 0;
+  ['chartRtt','chartGoodput','chartPkts','chartRetrans'].forEach(id => {
+    const c = Chart.getChart(document.getElementById(id));
+    if (c) { c.data.labels = []; c.data.datasets.forEach(d => d.data = []); c.update(); }
+  });
+  document.getElementById('logBody').innerHTML =
+    `<div class="log-row" style="opacity:.4">
+       <span class="log-ts">Timestamp</span>
+       <span style="color:var(--text-3);font-size:11px">Event</span>
+       <span class="log-seq">Seq</span>
+       <span class="log-det">Details</span>
+     </div>`;
+  setProgress(0, 'Sending…');
+  updateStats();
+}
+
+
+// ── Server ────────────────────────────────────────────────────────────────────
+async function startServer() {
+  const port = +document.getElementById('srvPort').value;
+  const loss = +document.getElementById('srvLoss').value;
+  const r = await fetch('/api/server/start', { method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ port, loss }) });
+  const j = await r.json();
+  if (!j.ok && j.msg !== 'Already running') alert('Server: ' + j.msg);
+  pollStatus();
+}
+async function stopServer() {
+  await fetch('/api/server/stop', { method:'POST' });
+  pollStatus();
+}
+async function pollStatus() {
+  const j = await (await fetch('/api/server/status')).json();
+  const chip = document.getElementById('srvBadge');
+  chip.className = 'status-chip' + (j.running ? ' online' : '');
+  document.getElementById('srvBadgeTxt').textContent =
+    j.running ? `Server :${j.port}` : 'Server offline';
+}
+setInterval(pollStatus, 3000);
+pollStatus();
+
+
+// ── Files ─────────────────────────────────────────────────────────────────────
+async function loadFiles() {
+  const files = await (await fetch('/api/files')).json();
+  const opts = files.map(f => `<option value="${f.name}">${f.name} (${(f.size/1024).toFixed(1)} KB)</option>`).join('');
+  document.getElementById('fileSelect').innerHTML = opts;
+  document.getElementById('cmpFile').innerHTML   = opts;
+}
+loadFiles();
+
+async function uploadFile(input) {
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  const j = await (await fetch('/api/upload', { method:'POST', body:fd })).json();
+  if (j.ok) loadFiles();
+}
+
+function updateWinLabel(v) {
+  document.getElementById('winLabel').textContent = v === 1 ? '1 (S&W)' : `${v}`;
+}
+
+
+// ── Transfer ──────────────────────────────────────────────────────────────────
+async function startTransfer() {
+  resetState();
+  const body = {
+    file:   document.getElementById('fileSelect').value,
+    host:   document.getElementById('txHost').value,
+    port:   +document.getElementById('txPort').value,
+    timeout:+document.getElementById('txTimeout').value,
+    chunk:  +document.getElementById('txChunk').value,
+    loss:   +document.getElementById('txLoss').value,
+    window: +document.getElementById('txWindow').value,
+    mode:   document.getElementById('txMode').value,
+    key:    document.getElementById('txKey').value,
+  };
+  document.getElementById('progTitle').textContent = `Sending: ${body.file}`;
+  const j = await (await fetch('/api/transfer/start', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+  })).json();
+  if (!j.ok) { alert('Transfer failed'); return; }
+
+  const src = new EventSource(`/api/transfer/stream/${j.id}`);
+  src.onmessage = e => {
+    const evt = JSON.parse(e.data);
+    if (evt.event === '__hb__') return;
+    if (evt.event === '__done__') { src.close(); finalise(evt.result); return; }
+    handleEvent(evt);
+  };
+  src.onerror = () => src.close();
+}
+
+function handleEvent(evt) {
+  const { event: ev, seq, ts, details: d } = evt;
+  if (!d) return;
+  const now = parseFloat(ts);
+  if (!st.startTs && ev !== 'TRANSFER_START') return;
+  if (ev === 'TRANSFER_START') {
+    st.startTs = now;
+    st.totalPkts = d.total || 0;
+    document.getElementById('progTitle').textContent =
+      `Transferring: ${d.file || ''} — ${st.totalPkts} packets`;
+    return;
+  }
+  const rel = (now - st.startTs).toFixed(2);
+
+  if (ev === 'PACKET_SENT') {
+    st.sent++;
+    if ((d.attempt || 0) > 0) st.retrans++;
+    st.cumBytes += d.chunk || 1024;
+    pushToPkts(rel, st.sent, st.acked);
+    pushTo(goodputChart, rel, st.cumBytes / 1024);
+  }
+  if (ev === 'ACK_RECEIVED') {
+    st.acked++;
+    const rtt = parseFloat(d.rtt || 0) * 1000;
+    st.rttSum += rtt; st.rttCount++;
+    pushTo(rttChart, rel, rtt.toFixed(2));
+  }
+  if (ev === 'TIMEOUT') st.timeouts++;
+  if (ev === 'PACKET_FAILED') st.failed++;
+  if (st.totalPkts > 0 && ev === 'PACKET_SENT')
+    setProgress(Math.round(st.sent / st.totalPkts * 100));
+  if (ev === 'TIMEOUT' || (ev === 'PACKET_SENT' && (d.attempt || 0) > 0))
+    pushTo(retransChart, rel, st.retrans);
+
+  updateStats();
+  addLogRow(ts, ev, seq, d);
+}
+
+function finalise(result) {
+  if (!result) return;
+  setProgress(100, 'Complete');
+  document.getElementById('metaDur').textContent = `${(result.duration || 0).toFixed(3)}s`;
+  const ok = result.file_ok;
+  const el = document.getElementById('metaOk');
+  el.textContent = ok ? 'OK ✓' : 'FAILED ✗';
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+  document.getElementById('stGoodput').textContent = ((result.goodput || 0) / 1024).toFixed(1);
+}
+
+function setProgress(pct, label) {
+  document.getElementById('progBar').style.width = pct + '%';
+  document.getElementById('progPct').textContent  = pct + '%';
+  if (label) document.getElementById('progTitle').textContent = label;
+}
+
+function updateStats() {
+  const avgRtt = st.rttCount ? (st.rttSum / st.rttCount).toFixed(2) : '—';
+  document.getElementById('stRtt').textContent     = avgRtt;
+  document.getElementById('stRetrans').textContent = st.retrans;
+  document.getElementById('metaSent').textContent  = st.sent;
+  document.getElementById('metaAcked').textContent = st.acked;
+  document.getElementById('metaFailed').textContent= st.failed;
+}
+
+
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+const MAX_PTS = 300;
+function pushTo(chart, x, y) {
+  chart.data.labels.push(x);
+  chart.data.datasets[0].data.push(+y);
+  if (chart.data.labels.length > MAX_PTS) {
+    chart.data.labels.shift();
+    chart.data.datasets[0].data.shift();
+  }
+  chart.update('none');
+}
+function pushToPkts(x, sent, acked) {
+  pktsChart.data.labels.push(x);
+  pktsChart.data.datasets[0].data.push(sent);
+  pktsChart.data.datasets[1].data.push(acked);
+  if (pktsChart.data.labels.length > MAX_PTS) {
+    pktsChart.data.labels.shift();
+    pktsChart.data.datasets.forEach(d => d.data.shift());
+  }
+  pktsChart.update('none');
+}
+
+
+// ── Event log ─────────────────────────────────────────────────────────────────
+const EV_CLASS = {
+  PACKET_SENT: 'ev-PACKET_SENT', ACK_RECEIVED: 'ev-ACK_RECEIVED',
+  TIMEOUT: 'ev-TIMEOUT', PACKET_FAILED: 'ev-PACKET_FAILED',
+  DUPLICATE: 'ev-DUPLICATE', TRANSFER_COMPLETE: 'ev-TRANSFER_COMPLETE',
+  TRANSFER_START: 'ev-TRANSFER_START', PACKET_DROPPED_SIM: 'ev-PACKET_DROPPED_SIM',
+};
+
+function addLogRow(ts, ev, seq, det) {
+  logCount++;
+  document.getElementById('logCount').textContent = `${logCount} events`;
+  const body = document.getElementById('logBody');
+  const detTxt = Object.entries(det).map(([k,v]) => `${k}=${v}`).join(' ').slice(0, 90);
+  const div = document.createElement('div');
+  div.className = 'log-row';
+  div.innerHTML =
+    `<span class="log-ts">${(+ts).toFixed(3)}</span>
+     <span class="${EV_CLASS[ev] || 'ev-default'}">${ev}</span>
+     <span class="log-seq">${seq}</span>
+     <span class="log-det">${detTxt}</span>`;
+  body.appendChild(div);
+  if (body.children.length > 502) body.children[1].remove();
+  body.scrollTop = body.scrollHeight;
+}
+
+function clearLog() {
+  const body = document.getElementById('logBody');
+  while (body.children.length > 1) body.lastChild.remove();
+  logCount = 0;
+  document.getElementById('logCount').textContent = '0 events';
+}
+
+
+// ── Results gallery ───────────────────────────────────────────────────────────
+async function loadImages() {
+  const imgs = await (await fetch('/api/results/images')).json();
+  const gal  = document.getElementById('gallery');
+  if (!imgs.length) {
+    gal.innerHTML = '<div class="muted text-sm" style="padding:20px">No images yet. Run experiments first.</div>';
+    return;
+  }
+  gal.innerHTML = imgs.map(f =>
+    `<div class="gallery-item">
+       <img src="/results/${f}" alt="${f}" onclick="openModal('/results/${f}','${f}')">
+       <div class="gallery-caption">${f.replace(/_/g, ' ')}</div>
+     </div>`
+  ).join('');
+}
+
+function openModal(src, cap) {
+  document.getElementById('modalImg').src = src;
+  document.getElementById('modalCaption').textContent = cap;
+  document.getElementById('imgModal').classList.add('open');
+}
+
+
+// ── Experiments ───────────────────────────────────────────────────────────────
+window.runExperiments = async function () {
+  const btn = document.getElementById('runExpBtn');
+  btn.textContent = 'Running…'; btn.disabled = true;
+  const con = document.getElementById('expConsole');
+  con.innerHTML = '';
+
+  const src = new EventSource('/api/experiments/run');
+  src.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.done) { src.close(); btn.textContent = 'Run All'; btn.disabled = false; loadImages(); return; }
+    const line = d.line || '';
+    const cls  = line.includes('===') || line.includes('---') ? 'sep'
+               : line.includes('Results') || line.includes('ok') ? 'ok'
+               : line.includes('FAIL') ? 'err' : '';
+    const div = document.createElement('div');
+    div.className = 'con-line ' + cls;
+    div.textContent = line;
+    con.appendChild(div);
+    con.scrollTop = con.scrollHeight;
+  };
+  src.onerror = () => { src.close(); btn.textContent = 'Run All'; btn.disabled = false; };
+};
+
+
+// ── TCP vs UDP ────────────────────────────────────────────────────────────────
+async function runCompare() {
+  const btn  = document.getElementById('cmpBtn');
+  const file = document.getElementById('cmpFile').value;
+  btn.textContent = 'Running…'; btn.disabled = true;
+  const con  = document.getElementById('cmpConsole');
+  con.innerHTML = '';
+
+  const resp   = await fetch('/api/tcp_compare', { method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({ file }) });
+  const reader = resp.body.getReader();
+  const dec    = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value);
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    for (const l of lines) {
+      if (!l.startsWith('data:')) continue;
+      const d = JSON.parse(l.slice(5).trim());
+      if (d.line !== undefined) {
+        const div = document.createElement('div');
+        div.className = 'con-line';
+        div.textContent = d.line;
+        con.appendChild(div);
+        con.scrollTop = con.scrollHeight;
+      }
+      if (d.done && d.result) {
+        const r = d.result;
+        document.getElementById('tcpGoodput').textContent = (r.tcp_goodput / 1024).toFixed(1);
+        document.getElementById('udpGoodput').textContent = (r.udp_goodput / 1024).toFixed(1);
+        document.getElementById('tcpDur').textContent     = r.tcp_duration.toFixed(4) + ' s';
+        document.getElementById('udpDur').textContent     = r.udp_duration.toFixed(4) + ' s';
+        document.getElementById('compareBars').style.display = 'grid';
+        btn.textContent = 'Run Comparison'; btn.disabled = false;
+      }
+    }
+  }
+  btn.textContent = 'Run Comparison'; btn.disabled = false;
+}
+
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'results') loadImages();
+}
+
+loadImages();
+</script>
+</body>
+</html>
