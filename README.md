@@ -4,6 +4,8 @@
 
 Bursa Teknik Üniversitesi – Bilgisayar Ağları Dönem Projesi
 
+Hazırlayan: Akif Adnan — 20360859106
+
 GitHub: https://github.com/akifadnan2003/Net-Probe
 
 ---
@@ -24,6 +26,8 @@ netprobe/
 ├── logger.py            # CSV event logger used by both client and server
 ├── analyzer.py          # Compute metrics and produce matplotlib graphs
 ├── experiments.py       # Automated experiment runner (all 4 scenarios + bonus)
+├── app.py               # Flask web dashboard with real-time SSE metrics
+├── realtime_viz.py      # Animated matplotlib live visualization (CLI alternative)
 ├── generate_test_files.py
 ├── logs/                # Per-run CSV event logs (auto-created)
 ├── received/            # Files reconstructed by server (auto-created)
@@ -160,16 +164,6 @@ Client                             Server
 
 - **Sliding Window (Go-Back-N style)** – `--window N` enables window of N in-flight packets; background thread collects ACKs.
 - **Packet loss simulator** – `--loss 0.1` randomly drops 10% of outgoing (client) or incoming (server) packets, enabling experiments without a lossy network.
-
----
-
-## Group Task Division
-
-| Member | Responsibility |
-|--------|---------------|
-| _name_ | protocol.py, server.py |
-| _name_ | client.py, logger.py |
-| _name_ | analyzer.py, experiments.py, report |
 
 ---
 
