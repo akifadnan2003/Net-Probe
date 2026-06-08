@@ -19,20 +19,28 @@ NetProbe implements a reliable file-transfer protocol **on top of raw UDP socket
 ## File Structure
 
 ```
-netprobe/
-├── protocol.py          # Binary packet format (DATA / ACK / FIN / FIN-ACK)
-├── server.py            # UDP server – receive file, send ACKs, verify integrity
-├── client.py            # UDP client – split & send file, handle timeouts/retransmits
-├── logger.py            # CSV event logger used by both client and server
-├── analyzer.py          # Compute metrics and produce matplotlib graphs
-├── experiments.py       # Automated experiment runner (all 4 scenarios + bonus)
-├── app.py               # Flask web dashboard with real-time SSE metrics
-├── realtime_viz.py      # Animated matplotlib live visualization (CLI alternative)
-├── generate_test_files.py
-├── logs/                # Per-run CSV event logs (auto-created)
-├── received/            # Files reconstructed by server (auto-created)
-├── results/             # PNG plots + summary CSV (auto-created)
-└── test_data/           # Input test files (created by generate_test_files.py)
+Net-Probe/
+├── src/                          # Tüm kaynak kodlar
+│   ├── protocol.py               # Paket formatı (DATA / ACK / FIN / FIN-ACK)
+│   ├── client.py                 # UDP gönderici — ARQ, kayan pencere
+│   ├── server.py                 # UDP alıcı — doğrulama, dosya yazma
+│   ├── logger.py                 # CSV olay günlükçüsü
+│   ├── analyzer.py               # Metrik hesaplama ve grafik üretimi
+│   ├── experiments.py            # Otomatik deney çalıştırıcı
+│   ├── generate_test_files.py    # Test dosyası üretici
+│   ├── app.py                    # Flask web dashboard + SSE API
+│   ├── crypto_compress.py        # XOR şifreleme + zlib sıkıştırma (bonus)
+│   ├── pcap_writer.py            # Wireshark .pcap çıktısı (bonus)
+│   ├── multi_client_server.py    # Çoklu istemci sunucu (bonus)
+│   ├── tcp_compare.py            # TCP vs UDP karşılaştırma (bonus)
+│   ├── realtime_viz.py           # Gerçek zamanlı matplotlib görselleştirme (bonus)
+│   └── templates/
+│       └── index.html            # Web arayüzü
+├── report/
+│   ├── NetProbe_Teknik_Rapor_FINAL.pdf   # Teknik rapor
+│   └── figures/                          # Deney grafikleri (6 PNG)
+├── README.md
+└── .gitignore
 ```
 
 ---
@@ -51,22 +59,22 @@ Python ≥ 3.8.  No other external dependencies (uses only stdlib: `socket`, `st
 
 ### 1. Generate test files
 ```bash
-python generate_test_files.py
+python src/generate_test_files.py
 ```
 
 ### 2. Start the server (terminal 1)
 ```bash
-python server.py --port 9999 --loss 0.0
+python src/server.py --port 9999 --loss 0.0
 ```
 
 ### 3. Send a file (terminal 2)
 ```bash
-python client.py test_data/file_256k.bin --port 9999 --chunk 1024 --timeout 1.0
+python src/client.py test_data/file_256k.bin --port 9999 --chunk 1024 --timeout 1.0
 ```
 
 ### 4. Run all experiments automatically
 ```bash
-python experiments.py
+python src/experiments.py
 ```
 This runs scenarios 1–4 plus the sliding-window bonus, saves graphs to `results/`, and writes `results/summary.csv`.
 
